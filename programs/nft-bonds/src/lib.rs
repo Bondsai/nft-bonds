@@ -15,14 +15,23 @@ pub mod nft_bonds {
 #[derive(Accounts)]
 pub struct Initialize {}
 
+
+#[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
+pub struct AvailableNFT {
+    pub title: String,
+}
+
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct EventStruct {
     pub title: String,
     pub owner: Pubkey,
-    pub percent: u16,
-    pub token: String,
     pub event_duration: u64,
-    pub vesting_duration: u64
+    pub percent: u16,
+    pub nfts: Vec<AvailableNFT>,
+
+    pub token: Pubkey,
+    pub tokens_num: u64,
+    pub vesting_duration: u64,
 }
 
 #[account]
