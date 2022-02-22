@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use anchor_lang::accounts::program::Program;
+use anchor_lang::context::CpiContext;
 
 declare_id!("8LxVy5z37GBWNHwF45XBe3DT82qdbd9Zez2BCe3BrPw1");
 
@@ -9,28 +9,28 @@ declare_id!("8LxVy5z37GBWNHwF45XBe3DT82qdbd9Zez2BCe3BrPw1");
 pub mod nft_bonds {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> ProgramResult {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let base_account = &mut ctx.accounts.base_account;
         base_account.events = Vec::new();
 
         Ok(())
     }
 
-    pub fn try_transfer_nft(ctx: Context<TransferNFT>,) -> ProgramResult {
+    pub fn try_transfer_nft(ctx: Context<TransferNFT>) -> Result<()> {
         let base_account = &mut ctx.accounts.base_account;
         let owner_user = &mut ctx.accounts.signer;
         let from = ctx.accounts.from.to_account_info();
         let to = ctx.accounts.to.to_account_info();
 
-        let cpi_accounts = Transfer {
+        let cpi_accounts: Transfer = Transfer {
             from: from.clone(),
             to: to.clone(),
             authority: owner_user.to_account_info().clone()
         };
 
-        let token_program = ctx.accounts.token_program.to_account_info();
+        let token_program: AccountInfo = ctx.accounts.token_program.to_account_info().clone();
 
-        let cpi_ctx = CpiContext::new(token_program, cpi_accounts);
+        let cpi_ctx: CpiContext<Transfer> = CpiContext::new(token_program, cpi_accounts);
         token::transfer(cpi_ctx, 1)?;
 
 

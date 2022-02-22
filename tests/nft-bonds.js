@@ -30,10 +30,9 @@ const main = async() => {
     accounts: {
       baseAccount: baseAccount.publicKey,
       signer: provider.wallet.publicKey,
-      token_program: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-      mint_nft: new PublicKey("BxAxmd1MCTLVkxrenYr2KWkYeoXTzTU59u1RhNs4vKxz"),
-      source: new PublicKey("6JLQCmQXnMuGd7hwxuHjMGpDL2kLLe8WY89ZV9Xo33mV"),
-      destination: new PublicKey("967TCyYJQqRjKHdmActdKMiX3LUoXcvDiaJAXtaLvSfB")
+      tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+      from: new PublicKey("6JLQCmQXnMuGd7hwxuHjMGpDL2kLLe8WY89ZV9Xo33mV"),
+      to: new PublicKey("967TCyYJQqRjKHdmActdKMiX3LUoXcvDiaJAXtaLvSfB")
     }
   });
 
