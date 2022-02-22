@@ -2,7 +2,7 @@
 seeds = false
 safety_checks = true
 [programs.localnet]
-nft_bonds = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+nft_bonds = "8LxVy5z37GBWNHwF45XBe3DT82qdbd9Zez2BCe3BrPw1"
 
 [registry]
 url = "https://anchor.projectserum.com"
