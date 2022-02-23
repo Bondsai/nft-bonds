@@ -1,5 +1,5 @@
 const anchor = require('@project-serum/anchor');
-const { SystemProgram, PublicKey } = anchor.web3;
+const { SystemProgram, PublicKey, TOKEN_PROGRAM_ID } = anchor.web3;
 
 
 const main = async() => {
@@ -25,18 +25,29 @@ const main = async() => {
 
   console.log("📝 Your transaction signature", tx);
 
-  const txTransfer = await program.rpc.tryTransferNft(
-      {
+  // const txTransfer = await program.rpc.tryTransferNft(
+  //     {
+  //   accounts: {
+  //     baseAccount: baseAccount.publicKey,
+  //     signer: provider.wallet.publicKey,
+  //     tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+  //     from: new PublicKey("6JLQCmQXnMuGd7hwxuHjMGpDL2kLLe8WY89ZV9Xo33mV"),
+  //     to: new PublicKey("967TCyYJQqRjKHdmActdKMiX3LUoXcvDiaJAXtaLvSfB")
+  //   }
+  // });
+  //
+  // console.log("📝 Your transaction TRANSFER", txTransfer);
+
+  const txTransferToVault = await program.rpc.initialize({
     accounts: {
       baseAccount: baseAccount.publicKey,
-      signer: provider.wallet.publicKey,
-      tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-      from: new PublicKey("6JLQCmQXnMuGd7hwxuHjMGpDL2kLLe8WY89ZV9Xo33mV"),
-      to: new PublicKey("967TCyYJQqRjKHdmActdKMiX3LUoXcvDiaJAXtaLvSfB")
-    }
+      user: provider.wallet.publicKey,
+      systemProgram: SystemProgram.programId,
+    },
+    signers: [baseAccount],
   });
 
-  console.log("📝 Your transaction TRANSFER", txTransfer);
+
 
   // Fetch data from the account.
 
