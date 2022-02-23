@@ -1,78 +1,282 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Token, Mint, TokenAccount, Transfer, SetAuthority, CloseAccount};
 use anchor_lang::accounts::program::Program;
 use anchor_lang::context::CpiContext;
+use spl_token::instruction::AuthorityType;
 
-declare_id!("8LxVy5z37GBWNHwF45XBe3DT82qdbd9Zez2BCe3BrPw1");
+declare_id!("DHQsrYccu96xN7HBmc7GZxVpr5vk4sWxRNvZWLwbNpuU");
 
 #[program]
 pub mod nft_bonds {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        let base_account = &mut ctx.accounts.base_account;
-        base_account.events = Vec::new();
+    const ESCROW_PDA_SEED: &[u8] = b"escrow";
+
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        _vault_account_bump: u8,
+        initializer_amount: u64,
+        taker_amount: u64,
+    ) -> ProgramResult {
+        ctx.accounts.escrow_account.initializer_key = *ctx.accounts.initializer.key;
+        ctx.accounts
+            .escrow_account
+            .initializer_deposit_token_account = *ctx
+            .accounts
+            .initializer_deposit_token_account
+            .to_account_info()
+            .key;
+        ctx.accounts
+            .escrow_account
+            .initializer_receive_token_account = *ctx
+            .accounts
+            .initializer_receive_token_account
+            .to_account_info()
+            .key;
+        ctx.accounts.escrow_account.initializer_amount = initializer_amount;
+        ctx.accounts.escrow_account.taker_amount = taker_amount;
+
+        let (vault_authority, _vault_authority_bump) =
+            Pubkey::find_program_address(&[ESCROW_PDA_SEED], ctx.program_id);
+        token::set_authority(
+            ctx.accounts.into_set_authority_context(),
+            AuthorityType::AccountOwner,
+            Some(vault_authority),
+        )?;
+
+        token::transfer(
+            ctx.accounts.into_transfer_to_pda_context(),
+            ctx.accounts.escrow_account.initializer_amount,
+        )?;
 
         Ok(())
     }
 
-    pub fn try_transfer_nft(ctx: Context<TransferNFT>) -> Result<()> {
-        let base_account = &mut ctx.accounts.base_account;
-        let owner_user = &mut ctx.accounts.signer;
-        let from = ctx.accounts.from.to_account_info();
-        let to = ctx.accounts.to.to_account_info();
+    // pub fn cancel(ctx: Context<Cancel>) -> ProgramResult {
+    //     let (_vault_authority, vault_authority_bump) =
+    //         Pubkey::find_program_address(&[ESCROW_PDA_SEED], ctx.program_id);
+    //     let authority_seeds = &[&ESCROW_PDA_SEED[..], &[vault_authority_bump]];
+    //
+    //     token::transfer(
+    //         ctx.accounts
+    //             .into_transfer_to_initializer_context()
+    //             .with_signer(&[&authority_seeds[..]]),
+    //         ctx.accounts.escrow_account.initializer_amount,
+    //     )?;
+    //
+    //     token::close_account(
+    //         ctx.accounts
+    //             .into_close_context()
+    //             .with_signer(&[&authority_seeds[..]]),
+    //     )?;
+    //
+    //     Ok(())
+    // }
 
-        let cpi_accounts: Transfer = Transfer {
-            from: from.clone(),
-            to: to.clone(),
-            authority: owner_user.to_account_info().clone()
-        };
+    pub fn exchange(ctx: Context<Exchange>) -> ProgramResult {
+        let (_vault_authority, vault_authority_bump) =
+            Pubkey::find_program_address(&[ESCROW_PDA_SEED], ctx.program_id);
+        let authority_seeds = &[&ESCROW_PDA_SEED[..], &[vault_authority_bump]];
 
-        let token_program: AccountInfo = ctx.accounts.token_program.to_account_info().clone();
+        token::transfer(
+            ctx.accounts.into_transfer_to_initializer_context(),
+            ctx.accounts.escrow_account.taker_amount,
+        )?;
 
-        let cpi_ctx: CpiContext<Transfer> = CpiContext::new(token_program, cpi_accounts);
-        token::transfer(cpi_ctx, 1)?;
+        token::transfer(
+            ctx.accounts
+                .into_transfer_to_taker_context()
+                .with_signer(&[&authority_seeds[..]]),
+            ctx.accounts.escrow_account.initializer_amount,
+        )?;
 
-
+        token::close_account(
+            ctx.accounts
+                .into_close_context()
+                .with_signer(&[&authority_seeds[..]]),
+        )?;
 
         Ok(())
     }
-}
 
-#[derive(Accounts)]
-pub struct Initialize<'info> {
-    #[account(init, payer = user, space = 9000)]
-    pub base_account: Account<'info, BaseAccount>,
-    #[account(mut)]
-    pub user: Signer<'info>,
-    pub system_program: Program <'info, System>,
+    // pub fn try_transfer_nft(ctx: Context<TransferNFT>) -> ProgramResult {
+    //     let base_account = &mut ctx.accounts.base_account;
+    //     let owner_user = &mut ctx.accounts.signer;
+    //     let from = ctx.accounts.from.to_account_info();
+    //     let to = ctx.accounts.to.to_account_info();
+    //     let cpi_accounts: Transfer = Transfer {
+    //         from: from.clone(),
+    //         to: to.clone(),
+    //         authority: owner_user.to_account_info().clone()
+    //     };
+    //     let token_program: AccountInfo = ctx.accounts.token_program.to_account_info().clone();
+    //     let cpi_ctx: CpiContext<Transfer> = CpiContext::new(token_program, cpi_accounts);
+    //     token::transfer(cpi_ctx, 1)?;
+    //     Ok(())
+    // }
 }
-
 
 #[account]
-pub struct BaseAccount {
-    pub events: Vec<EventStruct>
+pub struct EscrowAccount {
+    pub initializer_key: Pubkey,
+    pub initializer_deposit_token_account: Pubkey,
+    pub initializer_receive_token_account: Pubkey,
+    pub initializer_amount: u64,
+    pub taker_amount: u64,
 }
 
 #[derive(Accounts)]
-pub struct TransferNFT<'info> {
-    #[account(mut)]
-    pub base_account: Account<'info, BaseAccount>,
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    #[account(mut)]
-    pub from: Account<'info, TokenAccount>,
-    #[account(mut)]
-    pub to: Account<'info, TokenAccount>,
-    pub token_program: Program<'info, Token>
+#[instruction(vault_account_bump: u8, initializer_amount: u64)]
+pub struct Initialize<'info> {
+    #[account(mut, signer)]
+    pub initializer: AccountInfo<'info>,
+    pub mint: Account<'info, Mint>,
+    #[account(
+    init,
+    seeds = [b"token-seed".as_ref()],
+    payer = initializer,
+    token::mint = mint,
+    token::authority = initializer,
+    )]
+    pub vault_account: Account<'info, TokenAccount>,
+    #[account(
+    mut,
+    constraint = initializer_deposit_token_account.amount >= initializer_amount
+    )]
+    pub initializer_deposit_token_account: Account<'info, TokenAccount>,
+    pub initializer_receive_token_account: Account<'info, TokenAccount>,
+    #[account(zero)]
+    pub escrow_account: Box<Account<'info, EscrowAccount>>,
+    pub system_program: AccountInfo<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub token_program: AccountInfo<'info>,
 }
 
-#[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
-pub struct EventStruct {
-    pub title: String,
-    pub owner: Pubkey,
-    pub percent: u16,
-    pub token: String,
-    pub event_duration: u64,
-    pub vesting_duration: u64
+// #[derive(Accounts)]
+// pub struct Cancel<'info> {
+//     #[account(mut, signer)]
+//     pub initializer: AccountInfo<'info>,
+//     #[account(mut)]
+//     pub vault_account: Account<'info, TokenAccount>,
+//     pub vault_authority: AccountInfo<'info>,
+//     #[account(mut)]
+//     pub initializer_deposit_token_account: Account<'info, TokenAccount>,
+//     #[account(
+//     mut,
+//     constraint = escrow_account.initializer_key == *initializer.key,
+//     constraint = escrow_account.initializer_deposit_token_account == *initializer_deposit_token_account.to_account_info().key,
+//     close = initializer
+//     )]
+//     pub escrow_account: Box<Account<'info, EscrowAccount>>,
+//     pub token_program: AccountInfo<'info>,
+// }
+
+#[derive(Accounts)]
+pub struct Exchange<'info> {
+    #[account(signer)]
+    pub taker: AccountInfo<'info>,
+    #[account(mut)]
+    pub taker_deposit_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub taker_receive_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub initializer_deposit_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub initializer_receive_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub initializer: AccountInfo<'info>,
+    #[account(
+    mut,
+    constraint = escrow_account.taker_amount <= taker_deposit_token_account.amount,
+    constraint = escrow_account.initializer_deposit_token_account == *initializer_deposit_token_account.to_account_info().key,
+    constraint = escrow_account.initializer_receive_token_account == *initializer_receive_token_account.to_account_info().key,
+    constraint = escrow_account.initializer_key == *initializer.key,
+    close = initializer
+    )]
+    pub escrow_account: Box<Account<'info, EscrowAccount>>,
+    #[account(mut)]
+    pub vault_account: Account<'info, TokenAccount>,
+    pub vault_authority: AccountInfo<'info>,
+    pub token_program: AccountInfo<'info>,
+}
+
+impl<'info> Initialize<'info> {
+    fn into_transfer_to_pda_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_accounts = Transfer {
+            from: self
+                .initializer_deposit_token_account
+                .to_account_info()
+                .clone(),
+            to: self.vault_account.to_account_info().clone(),
+            authority: self.initializer.clone(),
+        };
+        CpiContext::new(self.token_program.clone(), cpi_accounts)
+    }
+
+    fn into_set_authority_context(&self) -> CpiContext<'_, '_, '_, 'info, SetAuthority<'info>> {
+        let cpi_accounts = SetAuthority {
+            account_or_mint: self.vault_account.to_account_info().clone(),
+            current_authority: self.initializer.clone(),
+        };
+        CpiContext::new(self.token_program.clone(), cpi_accounts)
+    }
+}
+
+// impl<'info> Cancel<'info> {
+//     fn into_transfer_to_initializer_context(
+//         &self,
+//     ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+//         let cpi_accounts = Transfer {
+//             from: self.vault_account.to_account_info().clone(),
+//             to: self
+//                 .initializer_deposit_token_account
+//                 .to_account_info()
+//                 .clone(),
+//             authority: self.vault_authority.clone(),
+//         };
+//         CpiContext::new(self.token_program.clone(), cpi_accounts)
+//     }
+//
+//     fn into_close_context(&self) -> CpiContext<'_, '_, '_, 'info, CloseAccount<'info>> {
+//         let cpi_accounts = CloseAccount {
+//             account: self.vault_account.to_account_info().clone(),
+//             destination: self.initializer.clone(),
+//             authority: self.vault_authority.clone(),
+//         };
+//         CpiContext::new(self.token_program.clone(), cpi_accounts)
+//     }
+// }
+
+impl<'info> Exchange<'info> {
+    fn into_transfer_to_initializer_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_accounts = Transfer {
+            from: self.taker_deposit_token_account.to_account_info().clone(),
+            to: self
+                .initializer_receive_token_account
+                .to_account_info()
+                .clone(),
+            authority: self.taker.clone(),
+        };
+        CpiContext::new(self.token_program.clone(), cpi_accounts)
+    }
+
+    fn into_transfer_to_taker_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
+        let cpi_accounts = Transfer {
+            from: self.vault_account.to_account_info().clone(),
+            to: self.taker_receive_token_account.to_account_info().clone(),
+            authority: self.vault_authority.clone(),
+        };
+        CpiContext::new(self.token_program.clone(), cpi_accounts)
+    }
+
+    fn into_close_context(&self) -> CpiContext<'_, '_, '_, 'info, CloseAccount<'info>> {
+        let cpi_accounts = CloseAccount {
+            account: self.vault_account.to_account_info().clone(),
+            destination: self.initializer.clone(),
+            authority: self.vault_authority.clone(),
+        };
+        CpiContext::new(self.token_program.clone(), cpi_accounts)
+    }
 }

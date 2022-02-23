@@ -1,15 +1,15 @@
 [features]
 seeds = false
 safety_checks = true
-[programs.localnet]
-nft_bonds = "8LxVy5z37GBWNHwF45XBe3DT82qdbd9Zez2BCe3BrPw1"
+[programs.devnet]
+nft_bonds = "DHQsrYccu96xN7HBmc7GZxVpr5vk4sWxRNvZWLwbNpuU"
 
 [registry]
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "/Users/aleksandrvorobev/.config/solana/id.json"
 
 [scripts]
-test = "yarn run mocha -t 1000000 tests/"
+test = "node tests/nft-bonds.js"
