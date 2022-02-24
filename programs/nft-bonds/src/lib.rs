@@ -16,11 +16,15 @@ pub mod nft_bonds {
         ctx: Context<MakeOffer>,
         escrowed_tokens_of_offer_maker_bump: u8,
         im_offering_this_much: u64,
+        duration: u8,
+        percent: u8
     ) -> ProgramResult {
         instructions::make_offer::handler(
             ctx,
             escrowed_tokens_of_offer_maker_bump,
-            im_offering_this_much
+            im_offering_this_much,
+            duration,
+            percent
         )
     }
 

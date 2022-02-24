@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 
 use crate::state::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -6,7 +7,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 #[derive(Accounts)]
 #[instruction(escrow_bump: u8)]
 pub struct MakeOffer<'info> {
-    #[account(init, payer = who_made_the_offer, space = 8 + 32 + 32 + 8 + 1)]
+    #[account(init, payer = who_made_the_offer, space = 500)]
     pub offer: Account<'info, Offer>,
 
     #[account(mut)]
@@ -37,12 +38,18 @@ pub struct MakeOffer<'info> {
 pub fn handler(
     ctx: Context<MakeOffer>,
     escrowed_tokens_of_offer_maker_bump: u8,
-    im_offering_this_much: u64
+    im_offering_this_much: u64,
+    duration: u8,
+    percent: u8
 ) -> ProgramResult {
     let offer = &mut ctx.accounts.offer;
     offer.who_made_the_offer = ctx.accounts.who_made_the_offer.key();
     offer.kind_of_token_wanted_in_return = ctx.accounts.kind_of_token_wanted_in_return.key();
     offer.escrowed_tokens_of_offer_maker_bump = escrowed_tokens_of_offer_maker_bump;
+
+    offer.start_time = solana_program::clock::Clock::get().unwrap().unix_timestamp.clone() as i64;
+    offer.duration = duration;
+    offer.percent = percent;
 
     anchor_spl::token::transfer(
         CpiContext::new(

@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use anchor_lang::prelude::*;
 
 use crate::state::*;
@@ -8,7 +9,7 @@ pub struct AcceptOffer<'info> {
     #[account(
         mut,
         constraint = offer.who_made_the_offer == who_made_the_offer.key(),
-        close = who_made_the_offer 
+        close = who_made_the_offer
     )]
     pub offer: Account<'info, Offer>,
 
@@ -42,61 +43,48 @@ pub struct AcceptOffer<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-    pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
-        // Transfer token to who started the offer
-        anchor_spl::token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: ctx
-                        .accounts
-                        .account_holding_what_receiver_will_give
-                        .to_account_info(),
-                    to: ctx
-                        .accounts
-                        .account_holding_what_maker_will_get
-                        .to_account_info(),
-                    authority: ctx.accounts.who_is_taking_the_offer.to_account_info(),
-                },
-            ),
-            1,
-        )?;
+pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
+    let cur_time = Clock::get().unwrap().unix_timestamp;
+    let duration_in_sec = (ctx.accounts.offer.duration * 24 * 60 * 60) as i64;
+    if cur_time.sub(ctx.accounts.offer.start_time) > duration_in_sec {
+        panic!("Offer expired:\nOffer timestamp {}\nCurrent timestamp {}",
+               ctx.accounts.offer.start_time,
+               cur_time
+        );
+    }
 
-        // Transfer what's on the escrowed account to the offer reciever.
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: ctx
-                        .accounts
-                        .escrowed_tokens_of_offer_maker
-                        .to_account_info(),
-                    to: ctx
-                        .accounts
-                        .account_holding_what_receiver_will_get
-                        .to_account_info(),
-                    authority: ctx
-                        .accounts
-                        .escrowed_tokens_of_offer_maker
-                        .to_account_info(),
-                },
-                &[&[
-                    ctx.accounts.offer.key().as_ref(),
-                    &[ctx.accounts.offer.escrowed_tokens_of_offer_maker_bump],
-                ]],
-            ),
-            ctx.accounts.escrowed_tokens_of_offer_maker.amount,
-        )?;
-
-        // Close the escrow account
-        anchor_spl::token::close_account(CpiContext::new_with_signer(
+    // Transfer token to who started the offer
+    anchor_spl::token::transfer(
+        CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::CloseAccount {
-                account: ctx
+            anchor_spl::token::Transfer {
+                from: ctx
+                    .accounts
+                    .account_holding_what_receiver_will_give
+                    .to_account_info(),
+                to: ctx
+                    .accounts
+                    .account_holding_what_maker_will_get
+                    .to_account_info(),
+                authority: ctx.accounts.who_is_taking_the_offer.to_account_info(),
+            },
+        ),
+        1,
+    )?;
+
+    // Transfer what's on the escrowed account to the offer reciever.
+    anchor_spl::token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: ctx
                     .accounts
                     .escrowed_tokens_of_offer_maker
                     .to_account_info(),
-                destination: ctx.accounts.who_made_the_offer.to_account_info(),
+                to: ctx
+                    .accounts
+                    .account_holding_what_receiver_will_get
+                    .to_account_info(),
                 authority: ctx
                     .accounts
                     .escrowed_tokens_of_offer_maker
@@ -106,5 +94,27 @@ pub struct AcceptOffer<'info> {
                 ctx.accounts.offer.key().as_ref(),
                 &[ctx.accounts.offer.escrowed_tokens_of_offer_maker_bump],
             ]],
-        ))
-    }
+        ),
+        ctx.accounts.escrowed_tokens_of_offer_maker.amount,
+    )?;
+
+    // Close the escrow account
+    anchor_spl::token::close_account(CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        anchor_spl::token::CloseAccount {
+            account: ctx
+                .accounts
+                .escrowed_tokens_of_offer_maker
+                .to_account_info(),
+            destination: ctx.accounts.who_made_the_offer.to_account_info(),
+            authority: ctx
+                .accounts
+                .escrowed_tokens_of_offer_maker
+                .to_account_info(),
+        },
+        &[&[
+            ctx.accounts.offer.key().as_ref(),
+            &[ctx.accounts.offer.escrowed_tokens_of_offer_maker_bump],
+        ]],
+    ))
+}

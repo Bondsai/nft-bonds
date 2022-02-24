@@ -1,4 +1,4 @@
-import { NftBonds } from "../target/types/nft-bonds";
+import { NftBonds } from "../target/types/nft_bonds";
 import { Program } from "@project-serum/anchor";
 import * as assert from 'assert';
 import * as anchor from '@project-serum/anchor';
@@ -72,6 +72,8 @@ describe('nft-bonds', () => {
     await program.rpc.makeOffer(
       escrowedTokensOfOfferMakerBump,
       new anchor.BN(43),
+        5,
+        20,
       {
         accounts: {
           offer: offer.publicKey,
@@ -92,7 +94,6 @@ describe('nft-bonds', () => {
     assert.equal(57, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
     const offerMakerCurrentNftAmounts = (await nftMint.getAccountInfo(offerMakerNftTokenAccount)).amount.toNumber();
     const offerMakerCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber();
-    console.log(offerMakerCurrentPlatformTokensAmounts)
     const offerReceiverCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber();
 
     let tx = await program.rpc.acceptOffer(
@@ -102,10 +103,10 @@ describe('nft-bonds', () => {
           whoMadeTheOffer: program.provider.wallet.publicKey,
           whoIsTakingTheOffer: offerTaker.publicKey,
           escrowedTokensOfOfferMaker: escrowedTokensOfOfferMaker,
-          accountHoldingWhatMakerWillGet: offerMakerNftTokenAccount, // account where the wanted pigs will be sent
+          accountHoldingWhatMakerWillGet: offerMakerNftTokenAccount,
           accountHoldingWhatReceiverWillGive: offerTakerNftTokenAccount,
-          accountHoldingWhatReceiverWillGet: offerTakerPlatformTokensTokenAccount, // where I'm getting my cows to
-          kindOfTokenWantedInReturn: nftMint.publicKey, //
+          accountHoldingWhatReceiverWillGet: offerTakerPlatformTokensTokenAccount,
+          kindOfTokenWantedInReturn: nftMint.publicKey,
           tokenProgram: spl.TOKEN_PROGRAM_ID,
         },
         signers: [offerTaker]
