@@ -3,13 +3,18 @@ use anchor_lang::prelude::*;
 
 use crate::state::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use crate::EventAccount;
 
 #[derive(Accounts)]
 pub struct AcceptOffer<'info> {
+
+    #[account(mut, has_one = authority)]
+    pub event_account: Account<'info, EventAccount>,
+
     #[account(
         mut,
-        constraint = offer.who_made_the_offer == who_made_the_offer.key(),
-        close = who_made_the_offer
+        constraint = offer.authority == authority.key(),
+        close = authority
     )]
     pub offer: Account<'info, Offer>,
 
@@ -17,14 +22,14 @@ pub struct AcceptOffer<'info> {
     pub escrowed_tokens_of_offer_maker: Account<'info, TokenAccount>,
 
     #[account(mut)]
-    pub who_made_the_offer: AccountInfo<'info>,
+    pub authority: AccountInfo<'info>,
 
     pub who_is_taking_the_offer: Signer<'info>,
 
     #[account(
         mut,
         associated_token::mint = kind_of_token_wanted_in_return,
-        associated_token::authority = who_made_the_offer
+        associated_token::authority = authority
     )]
     pub account_holding_what_maker_will_get: Box<Account<'info, TokenAccount>>,
 
@@ -45,10 +50,10 @@ pub struct AcceptOffer<'info> {
 
 pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
     let cur_time = Clock::get().unwrap().unix_timestamp;
-    let duration_in_sec = (ctx.accounts.offer.duration * 24 * 60 * 60) as i64;
-    if cur_time.sub(ctx.accounts.offer.start_time) > duration_in_sec {
+    let duration_in_sec = (ctx.accounts.event_account.duration * 24 * 60 * 60) as i64;
+    if cur_time.sub(ctx.accounts.event_account.start_time) > duration_in_sec {
         panic!("Offer expired:\nOffer timestamp {}\nCurrent timestamp {}",
-               ctx.accounts.offer.start_time,
+               ctx.accounts.event_account.start_time,
                cur_time
         );
     }
@@ -98,6 +103,9 @@ pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
         ctx.accounts.escrowed_tokens_of_offer_maker.amount,
     )?;
 
+    ctx.accounts.event_account.collected_tokens_amount += ctx.accounts.offer.amount_of_offered_tokens;
+    ctx.accounts.offer.is_collected = true;
+
     // Close the escrow account
     anchor_spl::token::close_account(CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
@@ -106,7 +114,7 @@ pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
                 .accounts
                 .escrowed_tokens_of_offer_maker
                 .to_account_info(),
-            destination: ctx.accounts.who_made_the_offer.to_account_info(),
+            destination: ctx.accounts.authority.to_account_info(),
             authority: ctx
                 .accounts
                 .escrowed_tokens_of_offer_maker

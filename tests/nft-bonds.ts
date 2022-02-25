@@ -1,126 +1,150 @@
-import { NftBonds } from "../target/types/nft_bonds";
-import { Program } from "@project-serum/anchor";
+import {NftBonds} from "../target/types/nft_bonds";
+import {Program} from "@project-serum/anchor";
 import * as assert from 'assert';
 import * as anchor from '@project-serum/anchor';
 import * as spl from '@solana/spl-token';
-import { NodeWallet } from "@project-serum/anchor/dist/cjs/provider";
+import {NodeWallet} from "@project-serum/anchor/dist/cjs/provider";
 
 
 describe('nft-bonds', () => {
 
-  anchor.setProvider(anchor.Provider.env());
-  const program = anchor.workspace.NftBonds as Program<NftBonds>;
+    anchor.setProvider(anchor.Provider.env());
+    const program = anchor.workspace.NftBonds as Program<NftBonds>;
 
-  let offerMakerPlatformTokensTokenAccount: anchor.web3.PublicKey;
-  let offerTakerNftTokenAccount: anchor.web3.PublicKey;
-  let offerTakerPlatformTokensTokenAccount: anchor.web3.PublicKey;
-  let offerMakerNftTokenAccount: anchor.web3.PublicKey;
+    let offerMakerPlatformTokensTokenAccount: anchor.web3.PublicKey;
+    let offerTakerNftTokenAccount: anchor.web3.PublicKey;
+    let offerTakerPlatformTokensTokenAccount: anchor.web3.PublicKey;
+    let offerMakerNftTokenAccount: anchor.web3.PublicKey;
 
-  let nftMint: spl.Token;
-  let platformTokensMint: spl.Token;
+    let nftMint: spl.Token;
+    let platformTokensMint: spl.Token;
 
-  let offerTaker = anchor.web3.Keypair.generate();
+    const DURATION_VAL = 5
+    const PERCENT_VAL = 20
 
-  before(async () => {
-    const wallet = program.provider.wallet as NodeWallet;
+    let offerTaker = anchor.web3.Keypair.generate();
 
-    nftMint = await spl.Token.createMint(program.provider.connection,
-      wallet.payer,
-      wallet.publicKey,
-      wallet.publicKey,
-      0,
-      spl.TOKEN_PROGRAM_ID);
+    before(async () => {
+        const wallet = program.provider.wallet as NodeWallet;
 
-    platformTokensMint = await spl.Token.createMint(program.provider.connection,
-      wallet.payer,
-      wallet.publicKey,
-      wallet.publicKey,
-      100,
-      spl.TOKEN_PROGRAM_ID);
+        nftMint = await spl.Token.createMint(program.provider.connection,
+            wallet.payer,
+            wallet.publicKey,
+            wallet.publicKey,
+            0,
+            spl.TOKEN_PROGRAM_ID);
+
+        platformTokensMint = await spl.Token.createMint(program.provider.connection,
+            wallet.payer,
+            wallet.publicKey,
+            wallet.publicKey,
+            100,
+            spl.TOKEN_PROGRAM_ID);
 
 
-    offerMakerNftTokenAccount = await nftMint.createAssociatedTokenAccount(
-      program.provider.wallet.publicKey
-    )
+        offerMakerNftTokenAccount = await nftMint.createAssociatedTokenAccount(
+            program.provider.wallet.publicKey
+        )
 
-    offerMakerPlatformTokensTokenAccount = await platformTokensMint.createAssociatedTokenAccount(
-      program.provider.wallet.publicKey
-    )
+        offerMakerPlatformTokensTokenAccount = await platformTokensMint.createAssociatedTokenAccount(
+            program.provider.wallet.publicKey
+        )
 
-    offerTakerNftTokenAccount = await nftMint.createAssociatedTokenAccount(
-      offerTaker.publicKey
-    )
+        offerTakerNftTokenAccount = await nftMint.createAssociatedTokenAccount(
+            offerTaker.publicKey
+        )
 
-    offerTakerPlatformTokensTokenAccount = await platformTokensMint.createAssociatedTokenAccount(
-      offerTaker.publicKey
-    )
+        offerTakerPlatformTokensTokenAccount = await platformTokensMint.createAssociatedTokenAccount(
+            offerTaker.publicKey
+        )
 
-    await nftMint.mintTo(offerTakerNftTokenAccount, program.provider.wallet.publicKey, [], 1);
-    await platformTokensMint.mintTo(offerMakerPlatformTokensTokenAccount, program.provider.wallet.publicKey, [], 100);
+        await nftMint.mintTo(offerTakerNftTokenAccount, program.provider.wallet.publicKey, [], 1);
+        await platformTokensMint.mintTo(offerMakerPlatformTokensTokenAccount, program.provider.wallet.publicKey, [], 100);
 
-  });
+    });
 
-  it('It let you place and accept offers for tokens', async () => {
+    it('Create event, place offer, accept offer', async () => {
+        const [eventAccount, eventAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [anchor.utils.bytes.utf8.encode("event"), anchor.getProvider().wallet.publicKey.toBuffer()],
+            program.programId
+        )
+        console.log("User:", anchor.getProvider().wallet.publicKey.toString())
+        console.log("Event:", eventAccount.toString())
 
-    const offer = anchor.web3.Keypair.generate();
-    console.log(offer.publicKey.toBase58())
-    const [escrowedTokensOfOfferMaker, escrowedTokensOfOfferMakerBump] = await anchor.web3.PublicKey.findProgramAddress(
-      [offer.publicKey.toBuffer()],
-      program.programId
-    )
+        await program.rpc.createEvent(eventAccountBump, DURATION_VAL, PERCENT_VAL, {
+            accounts: {
+                eventAccount: eventAccount,
+                authority: anchor.getProvider().wallet.publicKey,
+                systemProgram: anchor.web3.SystemProgram.programId,
+            },
+        })
+        let eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
+        assert.equal(PERCENT_VAL, eventAccountInfo.percent);
+        assert.equal(anchor.getProvider().wallet.publicKey.toString(), eventAccountInfo.authority.toString());
+        assert.equal(0, eventAccountInfo.totalNfts);
 
-    await program.rpc.makeOffer(
-      escrowedTokensOfOfferMakerBump,
-      new anchor.BN(43),
-        5,
-        20,
-      {
-        accounts: {
-          offer: offer.publicKey,
-          whoMadeTheOffer: program.provider.wallet.publicKey,
-          tokenAccountFromWhoMadeTheOffer: offerMakerPlatformTokensTokenAccount,
-          escrowedTokensOfOfferMaker: escrowedTokensOfOfferMaker,
-          kindOfTokenOffered: platformTokensMint.publicKey,
-          kindOfTokenWantedInReturn: nftMint.publicKey,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY
-        },
-        signers: [offer]
-      }
-    );
+        const [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [
+                anchor.utils.bytes.utf8.encode("offer"),
+                eventAccount.toBuffer(),
+                new anchor.BN(0).toArrayLike(Buffer)
+            ],
+            program.programId
+        )
 
-    assert.equal(43, (await platformTokensMint.getAccountInfo(escrowedTokensOfOfferMaker)).amount.toNumber());
-    assert.equal(57, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
-    const offerMakerCurrentNftAmounts = (await nftMint.getAccountInfo(offerMakerNftTokenAccount)).amount.toNumber();
-    const offerMakerCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber();
-    const offerReceiverCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber();
+        const [escrowedTokensOfOfferMaker, escrowedTokensOfOfferMakerBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [offer.toBuffer()],
+            program.programId
+        )
 
-    let tx = await program.rpc.acceptOffer(
-      {
-        accounts: {
-          offer: offer.publicKey,
-          whoMadeTheOffer: program.provider.wallet.publicKey,
-          whoIsTakingTheOffer: offerTaker.publicKey,
-          escrowedTokensOfOfferMaker: escrowedTokensOfOfferMaker,
-          accountHoldingWhatMakerWillGet: offerMakerNftTokenAccount,
-          accountHoldingWhatReceiverWillGive: offerTakerNftTokenAccount,
-          accountHoldingWhatReceiverWillGet: offerTakerPlatformTokensTokenAccount,
-          kindOfTokenWantedInReturn: nftMint.publicKey,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-        },
-        signers: [offerTaker]
-      }
-    );
+        await program.rpc.makeOffer(
+            offerBump,
+            escrowedTokensOfOfferMakerBump,
+            new anchor.BN(43),
+            {
+                accounts: {
+                    eventAccount: eventAccount,
+                    offer: offer,
+                    authority: program.provider.wallet.publicKey,
+                    tokenAccountFromWhoMadeTheOffer: offerMakerPlatformTokensTokenAccount,
+                    escrowedTokensOfOfferMaker: escrowedTokensOfOfferMaker,
+                    kindOfTokenOffered: platformTokensMint.publicKey,
+                    kindOfTokenWantedInReturn: nftMint.publicKey,
+                    tokenProgram: spl.TOKEN_PROGRAM_ID,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                    rent: anchor.web3.SYSVAR_RENT_PUBKEY
+                }
+            }
+        );
 
-    console.log(tx);
+        assert.equal(43, (await platformTokensMint.getAccountInfo(escrowedTokensOfOfferMaker)).amount.toNumber());
+        assert.equal(57, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
+        const offerMakerCurrentNftAmounts = (await nftMint.getAccountInfo(offerMakerNftTokenAccount)).amount.toNumber();
+        const offerMakerCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber();
+        const offerReceiverCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber();
 
-    assert.equal(offerMakerCurrentPlatformTokensAmounts, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
-    assert.equal(offerReceiverCurrentPlatformTokensAmounts + 43, (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber());
+        let tx = await program.rpc.acceptOffer(
+            {
+                accounts: {
+                    eventAccount: eventAccount,
+                    offer: offer,
+                    authority: program.provider.wallet.publicKey,
+                    whoIsTakingTheOffer: offerTaker.publicKey,
+                    escrowedTokensOfOfferMaker: escrowedTokensOfOfferMaker,
+                    accountHoldingWhatMakerWillGet: offerMakerNftTokenAccount,
+                    accountHoldingWhatReceiverWillGive: offerTakerNftTokenAccount,
+                    accountHoldingWhatReceiverWillGet: offerTakerPlatformTokensTokenAccount,
+                    kindOfTokenWantedInReturn: nftMint.publicKey,
+                    tokenProgram: spl.TOKEN_PROGRAM_ID,
+                },
+                signers: [offerTaker]
+            }
+        );
 
-    // accounts closed after transactions completed (e.g, accepted).
-    // assert.equal(null, await program.provider.connection.getAccountInfo(offer.publicKey));
-    // assert.equal(null, await program.provider.connection.getAccountInfo(escrowedTokensOfOfferMaker));
+        console.log(tx);
 
-  });
+        assert.equal(offerMakerCurrentPlatformTokensAmounts, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
+        assert.equal(offerReceiverCurrentPlatformTokensAmounts + 43, (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber());
+
+    });
 });
