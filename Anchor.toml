@@ -1,11 +1,11 @@
-[programs.localnet]
-nft_bonds = "456UKN1ktAjVgUnYEDhSkG4QmvgXnK6k5HDpLwG8Gjry"
+[programs.devnet]
+nft_bonds = "9wxeoeMpoNx2sfphzgGWAWZTQn98VDb7h9TAWfwJS1GU"
 
 [registry]
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
