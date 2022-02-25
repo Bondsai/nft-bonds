@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 
 use crate::state::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use crate::EventAccount;
 
 #[derive(Accounts)]
 pub struct AcceptOffer<'info> {

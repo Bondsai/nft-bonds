@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 
 use crate::state::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use crate::EventAccount;
 
 #[derive(Accounts)]
 #[instruction(event_bump: u8, escrow_bump: u8)]
@@ -57,6 +56,9 @@ pub fn handler(
 ) -> ProgramResult {
     let offer = &mut ctx.accounts.offer;
     let event_account = &mut ctx.accounts.event_account;
+    if !event_account.is_opened {
+        panic!("Event is not opened")
+    }
     offer.authority = ctx.accounts.authority.key();
     offer.kind_of_token_wanted_in_return = ctx.accounts.kind_of_token_wanted_in_return.key();
     offer.escrowed_tokens_of_offer_maker_bump = escrowed_tokens_of_offer_maker_bump;

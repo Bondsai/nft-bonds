@@ -125,6 +125,17 @@ describe('nft-bonds', async () => {
         assert.equal(0, eventAccountInfo.totalNfts);
         assert.equal(false, eventAccountInfo.isOpened);
 
+        await program.rpc.submitEvent(
+            {
+                accounts: {
+                    eventAccount: eventAccount
+                }, signers: [offerMaker]
+            }
+        );
+
+        eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
+        assert.equal(true, eventAccountInfo.isOpened);
+
         const [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
             [
                 anchor.utils.bytes.utf8.encode("offer"),
@@ -188,16 +199,6 @@ describe('nft-bonds', async () => {
         assert.equal(offerMakerCurrentPlatformTokensAmounts, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
         assert.equal(offerReceiverCurrentPlatformTokensAmounts + 43, (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber());
 
-        await program.rpc.submitEvent(
-            {
-                accounts: {
-                    eventAccount: eventAccount
-                }, signers: [offerMaker]
-            }
-        );
-
-        eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
-        assert.equal(true, eventAccountInfo.isOpened);
 
 
     });
