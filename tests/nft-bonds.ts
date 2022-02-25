@@ -22,6 +22,7 @@ describe('nft-bonds', async () => {
     let offerMaker = anchor.web3.Keypair.generate();
     let offerTaker = anchor.web3.Keypair.generate();
     let payer = anchor.web3.Keypair.generate();
+    let baseAccount = anchor.web3.Keypair.generate();
 
     const program = programPaidBy(provider, offerMaker);
 
@@ -59,6 +60,11 @@ describe('nft-bonds', async () => {
                     SystemProgram.transfer({
                         fromPubkey: payer.publicKey,
                         toPubkey: offerTaker.publicKey,
+                        lamports: LAMPORTS_PER_SOL / 10,
+                    }),
+                    SystemProgram.transfer({
+                        fromPubkey: payer.publicKey,
+                        toPubkey: baseAccount.publicKey,
                         lamports: LAMPORTS_PER_SOL / 10,
                     })
                 );
@@ -103,7 +109,20 @@ describe('nft-bonds', async () => {
         await platformTokensMint.mintTo(offerMakerPlatformTokensTokenAccount, program.provider.wallet.publicKey, [], 100);
     });
 
-    it('Create event, place offer, accept offer and open event', async () => {
+    it('Create event, open event, place offer, accept offer', async () => {
+
+        await program.rpc.initialize({
+            accounts: {
+                baseAccount: baseAccount.publicKey,
+                authority: baseAccount.publicKey,
+                systemProgram: SystemProgram.programId,
+            },
+            signers: [baseAccount],
+        });
+
+        let baseAccountInfo = await program.account.baseAccount.fetch(baseAccount.publicKey);
+        assert.equal(0, baseAccountInfo.hashes.length);
+
         const [eventAccount, eventAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
             [anchor.utils.bytes.utf8.encode("event"), offerMaker.publicKey.toBuffer()],
             program.programId
@@ -113,8 +132,8 @@ describe('nft-bonds', async () => {
 
         await program.rpc.createEvent(eventAccountBump, TITLE, DURATION_VAL, PERCENT_VAL, VESTING_TIME, {
             accounts: {
-                eventAccount: eventAccount,
                 authority: offerMaker.publicKey,
+                eventAccount: eventAccount,
                 systemProgram: anchor.web3.SystemProgram.programId,
             }, signers: [offerMaker]
         })
@@ -128,6 +147,7 @@ describe('nft-bonds', async () => {
         await program.rpc.submitEvent(
             {
                 accounts: {
+                    baseAccount: baseAccount.publicKey,
                     eventAccount: eventAccount
                 }, signers: [offerMaker]
             }
@@ -135,6 +155,9 @@ describe('nft-bonds', async () => {
 
         eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
         assert.equal(true, eventAccountInfo.isOpened);
+        baseAccountInfo = await program.account.baseAccount.fetch(baseAccount.publicKey);
+        assert.equal(1, baseAccountInfo.hashes.length);
+        assert.equal(offerMaker.publicKey, baseAccountInfo.hashes[0].toString());
 
         const [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
             [
