@@ -114,7 +114,7 @@ describe('nft-bonds', async () => {
         await program.rpc.initialize({
             accounts: {
                 baseAccount: baseAccount.publicKey,
-                authority: baseAccount.publicKey,
+                authority: offerMaker.publicKey,
                 systemProgram: SystemProgram.programId,
             },
             signers: [baseAccount],
