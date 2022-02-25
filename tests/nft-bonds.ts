@@ -21,6 +21,8 @@ describe('nft-bonds', () => {
 
     const DURATION_VAL = 5
     const PERCENT_VAL = 20
+    const TITLE = "My Event"
+    const VESTING_TIME = 0;
 
     let offerTaker = anchor.web3.Keypair.generate();
 
@@ -58,30 +60,31 @@ describe('nft-bonds', () => {
             offerTaker.publicKey
         )
 
+
         await nftMint.mintTo(offerTakerNftTokenAccount, program.provider.wallet.publicKey, [], 1);
         await platformTokensMint.mintTo(offerMakerPlatformTokensTokenAccount, program.provider.wallet.publicKey, [], 100);
-
     });
 
-    it('Create event, place offer, accept offer', async () => {
+    it('Create event, place offer, accept offer and open event', async () => {
         const [eventAccount, eventAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
-            [anchor.utils.bytes.utf8.encode("event"), anchor.getProvider().wallet.publicKey.toBuffer()],
+            [anchor.utils.bytes.utf8.encode("event"), program.provider.wallet.publicKey.toBuffer()],
             program.programId
         )
-        console.log("User:", anchor.getProvider().wallet.publicKey.toString())
+        console.log("User:", program.provider.wallet.publicKey.toString())
         console.log("Event:", eventAccount.toString())
 
-        await program.rpc.createEvent(eventAccountBump, DURATION_VAL, PERCENT_VAL, {
+        await program.rpc.createEvent(eventAccountBump, TITLE, DURATION_VAL, PERCENT_VAL, VESTING_TIME, {
             accounts: {
                 eventAccount: eventAccount,
-                authority: anchor.getProvider().wallet.publicKey,
+                authority: program.provider.wallet.publicKey,
                 systemProgram: anchor.web3.SystemProgram.programId,
-            },
+            }
         })
         let eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
         assert.equal(PERCENT_VAL, eventAccountInfo.percent);
-        assert.equal(anchor.getProvider().wallet.publicKey.toString(), eventAccountInfo.authority.toString());
+        assert.equal(program.provider.wallet.publicKey.toString(), eventAccountInfo.authority.toString());
         assert.equal(0, eventAccountInfo.totalNfts);
+        assert.equal(false, eventAccountInfo.isOpened);
 
         const [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
             [
@@ -145,6 +148,18 @@ describe('nft-bonds', () => {
 
         assert.equal(offerMakerCurrentPlatformTokensAmounts, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
         assert.equal(offerReceiverCurrentPlatformTokensAmounts + 43, (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber());
+
+        await program.rpc.submitEvent(
+            {
+                accounts: {
+                    eventAccount: eventAccount
+                }
+            }
+        );
+
+        eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
+        assert.equal(true, eventAccountInfo.isOpened);
+
 
     });
 });

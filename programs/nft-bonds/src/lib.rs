@@ -6,7 +6,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("3fVyhGTz9uXRhWmRVjLWCx9ViPRWnz7XUACE2JpMZ3aZ");
+declare_id!("8wT8G8ChUVp9J7nMzx714XwetHZRHTpU3i782BVPEdWg");
 
 #[program]
 pub mod nft_bonds {
@@ -33,8 +33,10 @@ pub mod nft_bonds {
     pub fn create_event(
         ctx: Context<CreateEvent>,
         event_account_bump: u8,
+        title: String,
         duration: u8,
         percent: u8,
+        vesting_time: u8
     ) -> ProgramResult {
         let event_account = &mut ctx.accounts.event_account;
         event_account.duration = duration;
@@ -42,9 +44,22 @@ pub mod nft_bonds {
         event_account.start_time = solana_program::clock::Clock::get().unwrap().unix_timestamp.clone() as i64;
         event_account.authority = ctx.accounts.authority.key();
         event_account.bump = event_account_bump;
+        event_account.is_opened = false;
         event_account.total_nfts = 0;
         event_account.collected_tokens_amount = 0;
         event_account.full_tokens_amount = 0;
+        event_account.title = title;
+        event_account.vesting_time = vesting_time;
+
+        Ok(())
+    }
+
+    pub fn submit_event(
+        ctx: Context<SubmitEvent>,
+    ) -> ProgramResult {
+        let event_account = &mut ctx.accounts.event_account;
+        event_account.start_time = solana_program::clock::Clock::get().unwrap().unix_timestamp.clone() as i64;
+        event_account.is_opened = true;
 
         Ok(())
     }
@@ -62,6 +77,7 @@ pub struct EventAccount {
     pub full_tokens_amount: u64,
 
     pub total_nfts: u8,
+    pub is_opened: bool,
 
     pub authority: Pubkey,
     pub bump: u8,
@@ -88,4 +104,12 @@ pub struct CreateEvent<'info> {
     pub event_account: Account<'info, EventAccount>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SubmitEvent<'info> {
+
+    #[account(mut)]
+    pub event_account: Account<'info, EventAccount>,
+
 }
