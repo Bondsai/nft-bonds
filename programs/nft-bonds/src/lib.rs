@@ -6,7 +6,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("9wxeoeMpoNx2sfphzgGWAWZTQn98VDb7h9TAWfwJS1GU");
+declare_id!("8wT8G8ChUVp9J7nMzx714XwetHZRHTpU3i782BVPEdWg");
 
 #[program]
 pub mod nft_bonds {

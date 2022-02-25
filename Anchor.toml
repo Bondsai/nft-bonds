@@ -1,5 +1,5 @@
 [programs.devnet]
-nft_bonds = "9wxeoeMpoNx2sfphzgGWAWZTQn98VDb7h9TAWfwJS1GU"
+nft_bonds = "8wT8G8ChUVp9J7nMzx714XwetHZRHTpU3i782BVPEdWg"
 
 [registry]
 url = "https://anchor.projectserum.com"
