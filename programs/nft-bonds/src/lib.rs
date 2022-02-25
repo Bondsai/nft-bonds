@@ -47,10 +47,14 @@ pub mod nft_bonds {
         )
     }
 
-    pub fn submit_event(
-        ctx: Context<SubmitEvent>,
-    ) -> ProgramResult {
+    pub fn submit_event(ctx: Context<SubmitEvent>) -> ProgramResult {
         instructions::submit_event::handler(
+            ctx
+        )
+    }
+
+    pub fn initialize(ctx: Context<Initialize>) -> ProgramResult {
+        instructions::initialize_base::handler(
             ctx
         )
     }
