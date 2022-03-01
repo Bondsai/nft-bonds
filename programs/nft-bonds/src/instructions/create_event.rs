@@ -30,7 +30,8 @@ pub fn handler(
     title: String,
     duration: u8,
     percent: u8,
-    vesting_time: u8
+    vesting_time: u8,
+    token: Pubkey
 ) -> ProgramResult {
     let event_account = &mut ctx.accounts.event_account;
     event_account.duration = duration;
@@ -42,8 +43,10 @@ pub fn handler(
     event_account.total_nfts = 0;
     event_account.collected_tokens_amount = 0;
     event_account.full_tokens_amount = 0;
+    event_account.collected_nfts = 0;
     event_account.title = title;
     event_account.vesting_time = vesting_time;
+    event_account.token = token;
 
     Ok(())
 }

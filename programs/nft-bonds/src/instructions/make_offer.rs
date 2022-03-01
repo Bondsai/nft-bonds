@@ -56,9 +56,7 @@ pub fn handler(
 ) -> ProgramResult {
     let offer = &mut ctx.accounts.offer;
     let event_account = &mut ctx.accounts.event_account;
-    if !event_account.is_opened {
-        panic!("Event is not opened")
-    }
+
     offer.authority = ctx.accounts.authority.key();
     offer.kind_of_token_wanted_in_return = ctx.accounts.kind_of_token_wanted_in_return.key();
     offer.escrowed_tokens_of_offer_maker_bump = escrowed_tokens_of_offer_maker_bump;
@@ -66,6 +64,7 @@ pub fn handler(
     offer.is_collected = false;
     offer.amount_of_offered_tokens = im_offering_this_much;
     event_account.full_tokens_amount += im_offering_this_much;
+    event_account.total_nfts += 1;
 
     anchor_spl::token::transfer(
         CpiContext::new(

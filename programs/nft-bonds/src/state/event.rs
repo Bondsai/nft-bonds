@@ -11,7 +11,10 @@ pub struct EventAccount {
     pub collected_tokens_amount: u64,
     pub full_tokens_amount: u64,
 
+    pub collected_nfts: u8,
     pub total_nfts: u8,
+    pub token: Pubkey,
+
     pub is_opened: bool,
 
     pub authority: Pubkey,

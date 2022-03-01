@@ -57,6 +57,10 @@ pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
         );
     }
 
+    if !ctx.accounts.event_account.is_opened {
+        panic!("Event is not opened")
+    }
+
     // Transfer token to who started the offer
     anchor_spl::token::transfer(
         CpiContext::new(
@@ -104,6 +108,7 @@ pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
 
     ctx.accounts.event_account.collected_tokens_amount += ctx.accounts.offer.amount_of_offered_tokens;
     ctx.accounts.offer.is_collected = true;
+    ctx.accounts.event_account.collected_nfts += 1;
 
     // Close the escrow account
     anchor_spl::token::close_account(CpiContext::new_with_signer(

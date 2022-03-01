@@ -1,5 +1,5 @@
 import {NftBonds} from "../target/types/nft_bonds";
-import {Program, Provider} from "@project-serum/anchor";
+import {Program, Provider, web3} from "@project-serum/anchor";
 import * as assert from 'assert';
 import * as anchor from '@project-serum/anchor';
 import * as spl from '@solana/spl-token';
@@ -23,6 +23,9 @@ describe('nft-bonds', async () => {
     let offerTaker = anchor.web3.Keypair.generate();
     let payer = anchor.web3.Keypair.generate();
     let baseAccount = anchor.web3.Keypair.generate();
+    // const arr = Object.values(kp._keypair.secretKey)
+    // const secret = new Uint8Array(arr)
+    // const baseAccount = web3.Keypair.fromSecretKey(secret)
 
     const program = programPaidBy(provider, offerMaker);
 
@@ -111,26 +114,27 @@ describe('nft-bonds', async () => {
 
     it('Create event, open event, place offer, accept offer', async () => {
 
-        await program.rpc.initialize({
-            accounts: {
-                baseAccount: baseAccount.publicKey,
-                authority: offerMaker.publicKey,
-                systemProgram: SystemProgram.programId,
-            },
-            signers: [baseAccount],
-        });
+        // await program.rpc.initialize({
+        //     accounts: {
+        //         baseAccount: baseAccount.publicKey,
+        //         authority: offerMaker.publicKey,
+        //         systemProgram: SystemProgram.programId,
+        //     },
+        //     signers: [baseAccount],
+        // });
+        //
+        // let baseAccountInfo = await program.account.baseAccount.fetch(baseAccount.publicKey);
+        // assert.equal(0, baseAccountInfo.hashes.length);
 
-        let baseAccountInfo = await program.account.baseAccount.fetch(baseAccount.publicKey);
-        assert.equal(0, baseAccountInfo.hashes.length);
-
-        const [eventAccount, eventAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
+        let [eventAccount, eventAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
             [anchor.utils.bytes.utf8.encode("event"), offerMaker.publicKey.toBuffer()],
             program.programId
         )
         console.log("User:", offerMaker.publicKey.toString())
         console.log("Event:", eventAccount.toString())
+        console.log("Base:", baseAccount.publicKey.toString())
 
-        await program.rpc.createEvent(eventAccountBump, TITLE, DURATION_VAL, PERCENT_VAL, VESTING_TIME, {
+        await program.rpc.createEvent(eventAccountBump, TITLE, DURATION_VAL, PERCENT_VAL, VESTING_TIME, platformTokensMint.publicKey, {
             accounts: {
                 authority: offerMaker.publicKey,
                 eventAccount: eventAccount,
@@ -143,23 +147,9 @@ describe('nft-bonds', async () => {
         assert.equal(offerMaker.publicKey.toString(), eventAccountInfo.authority.toString());
         assert.equal(0, eventAccountInfo.totalNfts);
         assert.equal(false, eventAccountInfo.isOpened);
+        assert.equal(platformTokensMint.publicKey.toString(), eventAccountInfo.token.toString());
 
-        await program.rpc.submitEvent(
-            {
-                accounts: {
-                    baseAccount: baseAccount.publicKey,
-                    eventAccount: eventAccount
-                }, signers: [offerMaker]
-            }
-        );
-
-        eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
-        assert.equal(true, eventAccountInfo.isOpened);
-        baseAccountInfo = await program.account.baseAccount.fetch(baseAccount.publicKey);
-        assert.equal(1, baseAccountInfo.hashes.length);
-        assert.equal(offerMaker.publicKey, baseAccountInfo.hashes[0].toString());
-
-        const [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
+        let [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
             [
                 anchor.utils.bytes.utf8.encode("offer"),
                 eventAccount.toBuffer(),
@@ -168,15 +158,17 @@ describe('nft-bonds', async () => {
             program.programId
         )
 
-        const [escrowedTokensOfOfferMaker, escrowedTokensOfOfferMakerBump] = await anchor.web3.PublicKey.findProgramAddress(
+        let [escrowedTokensOfOfferMaker, escrowedTokensOfOfferMakerBump] = await anchor.web3.PublicKey.findProgramAddress(
             [offer.toBuffer()],
             program.programId
         )
 
+        let TOKENS_OFFER_AMOUNT = 21;
+
         await program.rpc.makeOffer(
             offerBump,
             escrowedTokensOfOfferMakerBump,
-            new anchor.BN(43),
+            new anchor.BN(TOKENS_OFFER_AMOUNT),
             {
                 accounts: {
                     eventAccount: eventAccount,
@@ -193,11 +185,90 @@ describe('nft-bonds', async () => {
             }
         );
 
-        assert.equal(43, (await platformTokensMint.getAccountInfo(escrowedTokensOfOfferMaker)).amount.toNumber());
-        assert.equal(57, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
-        const offerMakerCurrentNftAmounts = (await nftMint.getAccountInfo(offerMakerNftTokenAccount)).amount.toNumber();
-        const offerMakerCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber();
-        const offerReceiverCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber();
+        [eventAccount, eventAccountBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [anchor.utils.bytes.utf8.encode("event"), offerMaker.publicKey.toBuffer()],
+            program.programId
+        );
+        [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [
+                anchor.utils.bytes.utf8.encode("offer"),
+                eventAccount.toBuffer(),
+                new anchor.BN(0).toArrayLike(Buffer)
+            ],
+            program.programId
+        )
+
+        let offerAccountInfo = await program.account.offer.fetch(offer)
+        console.log(offerAccountInfo)
+        assert.equal(false, offerAccountInfo.isCollected);
+
+
+        assert.equal(TOKENS_OFFER_AMOUNT, (await platformTokensMint.getAccountInfo(escrowedTokensOfOfferMaker)).amount.toNumber());
+        //assert.equal(60, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
+        let offerMakerCurrentNftAmounts = (await nftMint.getAccountInfo(offerMakerNftTokenAccount)).amount.toNumber();
+        let offerMakerCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber();
+        let offerReceiverCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber();
+
+         [offer, offerBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [
+                anchor.utils.bytes.utf8.encode("offer"),
+                eventAccount.toBuffer(),
+                new anchor.BN(1).toArrayLike(Buffer)
+            ],
+            program.programId
+        );
+
+         [escrowedTokensOfOfferMaker, escrowedTokensOfOfferMakerBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [offer.toBuffer()],
+            program.programId
+        )
+
+        TOKENS_OFFER_AMOUNT = 34;
+
+        await program.rpc.makeOffer(
+            offerBump,
+            escrowedTokensOfOfferMakerBump,
+            new anchor.BN(TOKENS_OFFER_AMOUNT),
+            {
+                accounts: {
+                    eventAccount: eventAccount,
+                    offer: offer,
+                    authority: offerMaker.publicKey,
+                    tokenAccountFromWhoMadeTheOffer: offerMakerPlatformTokensTokenAccount,
+                    escrowedTokensOfOfferMaker: escrowedTokensOfOfferMaker,
+                    kindOfTokenOffered: platformTokensMint.publicKey,
+                    kindOfTokenWantedInReturn: nftMint.publicKey,
+                    tokenProgram: spl.TOKEN_PROGRAM_ID,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                    rent: anchor.web3.SYSVAR_RENT_PUBKEY
+                }, signers: [offerMaker]
+            }
+        );
+
+        assert.equal(TOKENS_OFFER_AMOUNT, (await platformTokensMint.getAccountInfo(escrowedTokensOfOfferMaker)).amount.toNumber());
+        //assert.equal(60, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
+        offerMakerCurrentNftAmounts = (await nftMint.getAccountInfo(offerMakerNftTokenAccount)).amount.toNumber();
+        offerMakerCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber();
+        offerReceiverCurrentPlatformTokensAmounts = (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber();
+
+
+
+        await program.rpc.submitEvent(
+            {
+                accounts: {
+                    baseAccount: baseAccount.publicKey,
+                    eventAccount: eventAccount
+                }, signers: [offerMaker]
+            }
+        );
+
+        eventAccountInfo = await program.account.eventAccount.fetch(eventAccount)
+        assert.equal(true, eventAccountInfo.isOpened);
+        assert.equal(2, eventAccountInfo.totalNfts);
+        let baseAccountInfo = await program.account.baseAccount.fetch(baseAccount.publicKey);
+        //assert.equal(5, baseAccountInfo.hashes.length);
+        //assert.equal(offerMaker.publicKey, baseAccountInfo.hashes[4].toString());
+
 
         let tx = await program.rpc.acceptOffer(
             {
@@ -220,7 +291,7 @@ describe('nft-bonds', async () => {
         console.log(tx);
 
         assert.equal(offerMakerCurrentPlatformTokensAmounts, (await platformTokensMint.getAccountInfo(offerMakerPlatformTokensTokenAccount)).amount.toNumber());
-        assert.equal(offerReceiverCurrentPlatformTokensAmounts + 43, (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber());
+        assert.equal(offerReceiverCurrentPlatformTokensAmounts + TOKENS_OFFER_AMOUNT, (await platformTokensMint.getAccountInfo(offerTakerPlatformTokensTokenAccount)).amount.toNumber());
 
 
 

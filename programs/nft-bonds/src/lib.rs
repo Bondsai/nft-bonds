@@ -5,7 +5,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("8wT8G8ChUVp9J7nMzx714XwetHZRHTpU3i782BVPEdWg");
+declare_id!("GaEj4R5SVdsoV28KT3aDHp21xBTatUCyQ3LVLtBNWXPx");
 
 #[program]
 pub mod nft_bonds {
@@ -36,6 +36,7 @@ pub mod nft_bonds {
         duration: u8,
         percent: u8,
         vesting_time: u8,
+        token: Pubkey
     ) -> ProgramResult {
         instructions::create_event::handler(
             ctx,
@@ -44,6 +45,7 @@ pub mod nft_bonds {
             duration,
             percent,
             vesting_time,
+            token
         )
     }
 
