@@ -49,9 +49,10 @@ pub struct AcceptOffer<'info> {
 
 pub fn handler(ctx: Context<AcceptOffer>) -> ProgramResult {
     let cur_time = Clock::get().unwrap().unix_timestamp;
-    let duration_in_sec = (ctx.accounts.event_account.duration * 24 * 60 * 60) as i64;
+    let duration_in_sec = i64::from(ctx.accounts.event_account.duration) * 24 * 60 * 60;
     if cur_time.sub(ctx.accounts.event_account.start_time) > duration_in_sec {
-        panic!("Offer expired:\nOffer timestamp {}\nCurrent timestamp {}",
+        panic!("Offer with duration(sec)={} expired:\nOffer timestamp {}\nCurrent timestamp {}",
+               duration_in_sec,
                ctx.accounts.event_account.start_time,
                cur_time
         );
